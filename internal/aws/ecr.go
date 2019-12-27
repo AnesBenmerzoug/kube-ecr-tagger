@@ -58,7 +58,7 @@ func NewClient() (*Client, error) {
 }
 
 // TagImages adds the given tag to a list of images on ECR
-func (c *Client) TagImages(images []*ecr.Image, tag string) error {
+func (c *Client) TagImages(images []*ecr.Image, tag string) {
 	var imagesToTag []*ecr.Image
 	for _, image := range images {
 		if *image.ImageId.ImageTag == tag {
