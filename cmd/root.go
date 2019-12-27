@@ -17,8 +17,13 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 
+	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
+	"github.com/AnesBenmerzoug/kube-ecr-tagger/internal/helpers"
+	"github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
+	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +35,15 @@ var rootCmd = &cobra.Command{
 	Short: "Tags images from ECR used by Pods in cluster",
 	Long:  `A command that adds a given tag to all images from ECR that are used by Pods in the kubernetes cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			cmd.Help()
+			os.Exit(1)
+		}
+		err := findAndTagImages(args[0])
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -37,11 +51,67 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Print(err)
 		os.Exit(1)
 	}
 }
 
 func init() {
 	cobra.OnInitialize()
+}
+
+func findAndTagImages(tag string) error {
+	ecrClient, err := registry.NewClient()
+	if err != nil {
+		return err
+	}
+
+	k8sClient, err := kubernetes.NewClient("")
+	if err != nil {
+		return err
+	}
+
+	log.Print("Finding all Pod images")
+
+	imageNames, err := k8sClient.ListPodImages()
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Found '%v' images", len(imageNames))
+
+	log.Printf("Parsing image names")
+
+	var ecrImages []*ecr.Image
+
+	for _, imageName := range imageNames {
+		image, err := helpers.ParseImageName(imageName)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		ecrImages = append(ecrImages, image)
+	}
+
+	if len(ecrImages) == 0 {
+		return fmt.Errorf("No ECR images were found")
+	}
+
+	log.Printf("Found '%v' images from ECR", len(ecrImages))
+
+	log.Printf("Getting information about found images from ECR")
+
+	ecrImages, err = ecrClient.GetImagesInformation(ecrImages)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Tagging found ECR images with tag '%s'", tag)
+
+	err = ecrClient.TagImages(ecrImages, tag)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
