@@ -57,13 +57,10 @@ func NewClient() (*Client, error) {
 	return client, nil
 }
 
-// TagImages adds the given tag to a list of images on ECR
-func (c *Client) TagImages(images []*ecr.Image, tag string) {
-	var imagesToTag []*ecr.Image
+// GetImagesInformation queries ECR to get information for the given images
+func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error) {
+	var imageInformation []*ecr.Image
 	for _, image := range images {
-		if *image.ImageId.ImageTag == tag {
-			continue
-		}
 		getInput := &ecr.BatchGetImageInput{
 			ImageIds: []*ecr.ImageIdentifier{
 				{
@@ -78,15 +75,23 @@ func (c *Client) TagImages(images []*ecr.Image, tag string) {
 			if aerr, ok := err.(awserr.Error); ok {
 				log.Printf(aerr.Error())
 			} else {
-				log.Printf(err.Error())
+				return nil, err
 			}
 			continue
 		}
 		for _, resultImage := range result.Images {
-			imagesToTag = append(imagesToTag, resultImage)
+			imageInformation = append(imageInformation, resultImage)
 		}
 	}
+	return imageInformation, nil
+}
+
+// TagImages adds the given tag to a list of images on ECR
+func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 	for _, image := range imagesToTag {
+		if *image.ImageId.ImageTag == tag {
+			continue
+		}
 		putInput := &ecr.PutImageInput{
 			ImageManifest:  image.ImageManifest,
 			ImageTag:       aws.String(tag),
@@ -98,8 +103,9 @@ func (c *Client) TagImages(images []*ecr.Image, tag string) {
 			if aerr, ok := err.(awserr.Error); ok {
 				log.Printf(aerr.Error())
 			} else {
-				log.Printf(err.Error())
+				return err
 			}
 		}
 	}
+	return nil
 }
