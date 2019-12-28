@@ -22,7 +22,7 @@ import (
 
 	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
 	"github.com/AnesBenmerzoug/kube-ecr-tagger/internal/helpers"
-	"github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
+	k8s "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
 )
@@ -66,14 +66,14 @@ func findAndTagImages(tag string) error {
 		return err
 	}
 
-	k8sClient, err := kubernetes.NewClient("")
+	k8sClient, err := k8s.NewClient("")
 	if err != nil {
 		return err
 	}
 
 	log.Print("Finding all Pod images")
 
-	imageNames, err := k8sClient.ListPodImages()
+	imageNames, err := k8sClient.ListImages("")
 	if err != nil {
 		return err
 	}
