@@ -62,22 +62,23 @@ func (c *Client) ListImages(namespace string) ([]string, error) {
 		return nil, err
 	}
 
-	images := make(map[string]struct{}, 8)
+	imageMap := make(map[string]struct{}, 8)
+	var images []string
 
 	for _, pod := range pods.Items {
 		for _, initContainer := range pod.Spec.InitContainers {
-			images[initContainer.Image] = struct{}{}
+			if _, exists := imageMap[initContainer.Image]; !exists {
+				imageMap[initContainer.Image] = struct{}{}
+				images = append(images, initContainer.Image)
+			}
 		}
 		for _, container := range pod.Spec.Containers {
-			images[container.Image] = struct{}{}
+			if _, exists := imageMap[container.Image]; !exists {
+				imageMap[container.Image] = struct{}{}
+				images = append(images, container.Image)
+			}
 		}
 	}
 
-	var uniqueImages []string
-
-	for image := range images {
-		uniqueImages = append(uniqueImages, image)
-	}
-
-	return uniqueImages, nil
+	return images, nil
 }
