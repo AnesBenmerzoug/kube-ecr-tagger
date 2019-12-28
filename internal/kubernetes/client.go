@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package kubernetes
+package k8s
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +24,7 @@ import (
 
 // Client wraps a kubernetes clientset
 type Client struct {
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 }
 
 // NewClient instantiates a new Client struct from either a kubeconfig file (out of cluster)
@@ -55,14 +55,14 @@ func NewClient(kubeconfig string) (*Client, error) {
 	return client, nil
 }
 
-// ListPodImages returns a list of images currently used by Pods
-func (c *Client) ListPodImages() ([]string, error) {
-	pods, err := c.clientset.CoreV1().Pods("").List(metav1.ListOptions{})
+// ListImages returns a list of images currently used by Pods
+func (c *Client) ListImages(namespace string) ([]string, error) {
+	pods, err := c.clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	var images map[string]struct{}
+	images := make(map[string]struct{}, 8)
 
 	for _, pod := range pods.Items {
 		for _, initContainer := range pod.Spec.InitContainers {
