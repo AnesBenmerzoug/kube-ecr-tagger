@@ -16,7 +16,9 @@ limitations under the License.
 package registry
 
 import (
+	"fmt"
 	"log"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -27,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/aws/aws-sdk-go/service/ecr/ecriface"
 )
+
+var ecrRegex = regexp.MustCompile(`^(?P<registry>\d+)\.dkr\.ecr.\w+-\w+-\d\.amazonaws\.com/(?P<repository>.+):(?P<tag>.+)$`)
 
 // Client wraps an ECR API
 type Client struct {
@@ -108,4 +112,18 @@ func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 		}
 	}
 	return nil
+}
+
+// ParseImageName parses a given ECR image name and extracts the registry ID, repository name and tag from it
+func ParseImageName(imageName string) (*ecr.Image, error) {
+	match := ecrRegex.FindStringSubmatch(imageName)
+	if match == nil {
+		return nil, fmt.Errorf("Could not parse image name '%s'", imageName)
+	}
+	image := &ecr.Image{
+		ImageId:        &ecr.ImageIdentifier{ImageTag: aws.String(match[2])},
+		RepositoryName: aws.String(match[1]),
+		RegistryId:     aws.String(match[0]),
+	}
+	return image, nil
 }
