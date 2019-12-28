@@ -21,7 +21,6 @@ import (
 	"os"
 
 	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
-	"github.com/AnesBenmerzoug/kube-ecr-tagger/internal/helpers"
 	k8s "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
@@ -85,7 +84,7 @@ func findAndTagImages(tag string) error {
 	var ecrImages []*ecr.Image
 
 	for _, imageName := range imageNames {
-		image, err := helpers.ParseImageName(imageName)
+		image, err := registry.ParseImageName(imageName)
 		if err != nil {
 			log.Print(err)
 			continue
