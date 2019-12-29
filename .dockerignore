@@ -1,0 +1,8 @@
+# Ignore all files
+**
+# Add exceptions
+!cmd
+!internal
+!main.go
+!go.*
+!Makefile
