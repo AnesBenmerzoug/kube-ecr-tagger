@@ -1,0 +1,35 @@
+name: CI
+
+on: 
+  push:
+    branches:
+    - master
+  pull_request:
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.13
+    - name: Check out code
+      uses: actions/checkout@v1
+    - name: Run tests
+      run: make test
+      
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+    - name: Set up Go
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.13
+    - name: Check out code
+      uses: actions/checkout@v1
+    - name: Build binary
+      run: make build
