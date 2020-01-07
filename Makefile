@@ -27,10 +27,10 @@ lint:
 	golangci-lint run
 
 install-golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(go env GOPATH)/bin v1.22.0
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(HOME)/bin v1.22.0
 
 lint-ci:
-	$(go env GOPATH)/bin/golangci-lint run
+	$(HOME)/bin/golangci-lint run
 
 clean:
 	go clean
