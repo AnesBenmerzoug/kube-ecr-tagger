@@ -43,6 +43,19 @@ This is done in order to avoid shooting yourself in the foot by accidentally del
 make test
 ```
 
+## Linting
+
+Install and run [golanci-lint](https://github.com/golangci/golangci-lint#install)
+
+```bash
+# binary will be $(go env GOPATH)/bin/golangci-lint
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+```
+
+```bash
+make lint
+```
+
 ## Build
 
 Dynamically-linked binary:

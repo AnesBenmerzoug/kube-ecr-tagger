@@ -23,6 +23,9 @@ test:
 format:
 	gofmt -l -w -s .
 
+lint:
+	golangci-lint run
+
 clean:
 	go clean
 	rm -rf bin

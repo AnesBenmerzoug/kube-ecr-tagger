@@ -41,7 +41,10 @@ type Client struct {
 func NewClient() (*Client, error) {
 	config := aws.NewConfig()
 
-	currentSession := session.New(config)
+	currentSession, err := session.NewSession(config)
+	if err != nil {
+		return nil, err
+	}
 
 	awsCredentials := credentials.NewChainCredentials(
 		[]credentials.Provider{
@@ -77,15 +80,13 @@ func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error)
 		result, err := c.BatchGetImage(getInput)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
-				log.Printf(aerr.Error())
+				log.Print(aerr.Error())
 			} else {
 				return nil, err
 			}
 			continue
 		}
-		for _, resultImage := range result.Images {
-			imageInformation = append(imageInformation, resultImage)
-		}
+		imageInformation = append(imageInformation, result.Images...)
 	}
 	return imageInformation, nil
 }
@@ -105,7 +106,7 @@ func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 		_, err := c.PutImage(putInput)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
-				log.Printf(aerr.Error())
+				log.Print(aerr.Error())
 			} else {
 				return err
 			}

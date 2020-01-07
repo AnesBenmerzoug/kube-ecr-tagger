@@ -48,7 +48,7 @@ var rootCmd = &cobra.Command{
 	Long:  `A command that adds a given tag to all images from ECR that are used by Pods in the kubernetes cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			cmd.Help()
+			_ = cmd.Help()
 			os.Exit(1)
 		}
 		err := findAndTagImages(args[0], opts)
