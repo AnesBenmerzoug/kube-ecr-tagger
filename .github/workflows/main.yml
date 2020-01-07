@@ -20,7 +20,7 @@ jobs:
     - name: Install golangci-lint
       run: make install-golangci-lint
     - name: Run golangci-lint
-      run: lint-ci
+      run: make lint-ci
   test:
     name: test
     runs-on: ubuntu-latest
