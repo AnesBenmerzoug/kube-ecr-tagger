@@ -8,7 +8,36 @@ kube-ecr-tagger is a tool used to complement ECR lifecycles policies by adding a
 
 This is done in order to avoid shooting yourself in the foot by accidentally deleting images that are still being used.
 
-## Test
+## Requirements
+
+* Working Kubernetes cluster
+* IAM Role to tag images on ECR with at least the following policy:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:DescribeRepositories",
+                "ecr:ListImages",
+                "ecr:DescribeImages",
+                "ecr:BatchGetImage",
+                "ecr:ListTagsForResource",
+                "ecr:PutImage",
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+
+## Tests
 
 ```bash
 make test
