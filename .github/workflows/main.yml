@@ -18,10 +18,9 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v1
     - name: Install golangci-lint
-      run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(go env GOPATH)/bin v1.22.0
+      run: install-golangci-lint
     - name: Run golangci-lint
-      run: make lint
-
+      run: lint-ci
   test:
     name: test
     runs-on: ubuntu-latest
