@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
 	k8s "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
@@ -26,7 +27,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cfgFile string
+type commandOpts struct {
+	KubeConfig string
+	Namespace  string
+}
+
+var opts = commandOpts{}
+
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	return os.Getenv("USERPROFILE") // windows
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -38,7 +51,7 @@ var rootCmd = &cobra.Command{
 			cmd.Help()
 			os.Exit(1)
 		}
-		err := findAndTagImages(args[0])
+		err := findAndTagImages(args[0], opts)
 		if err != nil {
 			log.Print(err)
 			os.Exit(1)
@@ -57,22 +70,24 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize()
+	rootCmd.Flags().StringVar(&opts.KubeConfig, "kube-config", filepath.Join(homeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
+	rootCmd.Flags().StringVar(&opts.Namespace, "namespace", "", "namespace from which images will be listed. Defaults to all namespaces")
 }
 
-func findAndTagImages(tag string) error {
+func findAndTagImages(tag string, opts commandOpts) error {
 	ecrClient, err := registry.NewClient()
 	if err != nil {
 		return err
 	}
 
-	k8sClient, err := k8s.NewClient("")
+	k8sClient, err := k8s.NewClient(opts.KubeConfig)
 	if err != nil {
 		return err
 	}
 
 	log.Print("Finding all Pod images")
 
-	imageNames, err := k8sClient.ListImages("")
+	imageNames, err := k8sClient.ListImages(opts.Namespace)
 	if err != nil {
 		return err
 	}

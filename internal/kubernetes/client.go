@@ -33,14 +33,12 @@ func NewClient(kubeconfig string) (*Client, error) {
 	var config *rest.Config
 	var err error
 
-	if kubeconfig != "" {
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		config, err = rest.InClusterConfig()
-	}
-
+	config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return nil, err
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
