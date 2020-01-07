@@ -26,8 +26,11 @@ linters:
     - maligned
     - prealloc
     - scopelint
+    - errcheck
+    - gochecknoglobals
+    - gochecknoinits
   presets:
     - bugs
     - unused
-  fast: false
+    - complexity
 
