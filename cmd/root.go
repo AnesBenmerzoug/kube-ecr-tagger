@@ -1,5 +1,5 @@
 /*
-Copyright © 2019 NAME HERE <EMAIL ADDRESS>
+Copyright © 2019 Anes Benmerzoug
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,27 +19,25 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
-	k8s "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 type commandOpts struct {
-	KubeConfig string
-	Namespace  string
+	Namespace string
 }
 
 var opts = commandOpts{}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -70,8 +68,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize()
-	rootCmd.Flags().StringVar(&opts.KubeConfig, "kube-config", filepath.Join(homeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
-	rootCmd.Flags().StringVar(&opts.Namespace, "namespace", "", "namespace from which images will be listed. Defaults to all namespaces")
+	rootCmd.Flags().StringVar(&opts.Namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
 }
 
 func findAndTagImages(tag string, opts commandOpts) error {
@@ -80,52 +77,74 @@ func findAndTagImages(tag string, opts commandOpts) error {
 		return err
 	}
 
-	k8sClient, err := k8s.NewClient(opts.KubeConfig)
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		return err
 	}
 
-	log.Print("Finding all Pod images")
-
-	imageNames, err := k8sClient.ListImages(opts.Namespace)
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Found '%v' images", len(imageNames))
+	defaultResyncPeriod := 0 * time.Second
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(opts.Namespace))
+	informer := factory.Core().V1().Pods().Informer()
+	stopper := make(chan struct{})
+	defer close(stopper)
+	defer runtime.HandleCrash()
 
-	log.Printf("Parsing image names")
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			tagPodImages(ecrClient, tag, obj)
+		},
+		UpdateFunc: func(new interface{}, old interface{}) {
+			tagPodImages(ecrClient, tag, new)
+		},
+	})
+	go informer.Run(stopper)
+	if !cache.WaitForCacheSync(stopper, informer.HasSynced) {
+		err := fmt.Errorf("Timed out waiting for caches to sync")
+		runtime.HandleError(err)
+		return err
+	}
+	<-stopper
 
+	return nil
+}
+
+func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return
+	}
 	var ecrImages []*ecr.Image
-
-	for _, imageName := range imageNames {
-		image, err := registry.ParseImageName(imageName)
+	// Get from init containers all images that are from ECR
+	for _, container := range pod.Spec.InitContainers {
+		image, err := registry.ParseImageName(container.Image)
 		if err != nil {
 			log.Print(err)
 			continue
 		}
 		ecrImages = append(ecrImages, image)
 	}
-
-	if len(ecrImages) == 0 {
-		return fmt.Errorf("No ECR images were found")
+	// Get from containers all images that are from ECR
+	for _, container := range pod.Spec.Containers {
+		image, err := registry.ParseImageName(container.Image)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		ecrImages = append(ecrImages, image)
 	}
-
-	log.Printf("Found '%v' images from ECR", len(ecrImages))
-
-	log.Printf("Getting information about found images from ECR")
-
-	ecrImages, err = ecrClient.GetImagesInformation(ecrImages)
+	// Get the images' manifests from ECR
+	ecrImages, err := ecrClient.GetImagesInformation(ecrImages)
 	if err != nil {
-		return err
+		return
 	}
-
-	log.Printf("Tagging found ECR images with tag '%s'", tag)
-
+	// Add the given tag to all images
 	err = ecrClient.TagImages(ecrImages, tag)
 	if err != nil {
-		return err
+		return
 	}
-
-	return nil
 }
