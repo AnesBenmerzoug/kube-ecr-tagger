@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -23,7 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
+	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/ecr"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -33,11 +34,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type commandOpts struct {
-	Namespace string
-}
-
-var opts = commandOpts{}
+var namespace string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -49,7 +46,27 @@ var rootCmd = &cobra.Command{
 			_ = cmd.Help()
 			os.Exit(1)
 		}
-		err := findAndTagImages(args[0], opts)
+		ecrClient, err := registry.NewClient()
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		ctx := context.Background()
+		tag := args[0]
+		err = findAndTagImages(ctx, clientset, ecrClient, tag, namespace)
 		if err != nil {
 			log.Print(err)
 			os.Exit(1)
@@ -68,30 +85,14 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize()
-	rootCmd.Flags().StringVar(&opts.Namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
+	rootCmd.Flags().StringVar(&namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
 }
 
-func findAndTagImages(tag string, opts commandOpts) error {
-	ecrClient, err := registry.NewClient()
-	if err != nil {
-		return err
-	}
-
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	defaultResyncPeriod := 0 * time.Second
-	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(opts.Namespace))
+func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tag string, namespace string) error {
+	// create the shared informer and resync every 1s
+	defaultResyncPeriod := 1 * time.Second
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(namespace))
 	informer := factory.Core().V1().Pods().Informer()
-	stopper := make(chan struct{})
-	defer close(stopper)
 	defer runtime.HandleCrash()
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -102,13 +103,13 @@ func findAndTagImages(tag string, opts commandOpts) error {
 			tagPodImages(ecrClient, tag, new)
 		},
 	})
-	go informer.Run(stopper)
-	if !cache.WaitForCacheSync(stopper, informer.HasSynced) {
+	go informer.Run(ctx.Done())
+	if !cache.WaitForNamedCacheSync("kube-ecr-tagger", ctx.Done(), informer.HasSynced) {
 		err := fmt.Errorf("Timed out waiting for caches to sync")
 		runtime.HandleError(err)
 		return err
 	}
-	<-stopper
+	<-ctx.Done()
 
 	return nil
 }
@@ -118,6 +119,7 @@ func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
 	if !ok {
 		return
 	}
+	log.Print("Getting images from Pod's containers")
 	var ecrImages []*ecr.Image
 	// Get from init containers all images that are from ECR
 	for _, container := range pod.Spec.InitContainers {
@@ -137,14 +139,22 @@ func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
 		}
 		ecrImages = append(ecrImages, image)
 	}
+	if len(ecrImages) == 0 {
+		log.Print("No ECR images are used in this Pod")
+		return
+	}
 	// Get the images' manifests from ECR
+	log.Print("Getting images' manifests from ECR")
 	ecrImages, err := ecrClient.GetImagesInformation(ecrImages)
 	if err != nil {
+		log.Print(err)
 		return
 	}
 	// Add the given tag to all images
+	log.Printf("Tagging images' on ECR with tag '%s'", tag)
 	err = ecrClient.TagImages(ecrImages, tag)
 	if err != nil {
+		log.Print(err)
 		return
 	}
 }
