@@ -5,7 +5,7 @@ BINARY_NAME=$(BINARY_DIRECTORY)/kube-ecr-tagger
 GOPATH?=$(go env GOPATH)
 GOPATH?=${HOME}/go
 
-all: test build
+all: fmt vet lint test build
 
 build:
 	go build -o $(BINARY_NAME)
@@ -20,8 +20,11 @@ test:
 	go test ./... -v -coverprofile=coverage.out
 	go tool cover -html=coverage.out
 
-format:
+fmt:
 	gofmt -l -w -s .
+
+vet:
+	go vet .
 
 lint:
 	golangci-lint run
