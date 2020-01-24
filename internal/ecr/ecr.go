@@ -1,5 +1,5 @@
 /*
-Copyright © 2019 NAME HERE <EMAIL ADDRESS>
+Copyright © 2019 Anes Benmerzoug
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -95,6 +95,7 @@ func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error)
 func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 	for _, image := range imagesToTag {
 		if *image.ImageId.ImageTag == tag {
+			log.Printf("Image '%s' already has tag '%s'", image.ImageId.String(), *image.ImageId.ImageTag)
 			continue
 		}
 		putInput := &ecr.PutImageInput{

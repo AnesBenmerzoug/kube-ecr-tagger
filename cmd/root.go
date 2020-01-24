@@ -1,5 +1,5 @@
 /*
-Copyright © 2019 NAME HERE <EMAIL ADDRESS>
+Copyright © 2019 Anes Benmerzoug
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,30 +16,25 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"time"
 
-	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/aws"
-	k8s "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/kubernetes"
+	corev1 "k8s.io/api/core/v1"
+
+	registry "github.com/AnesBenmerzoug/kube-ecr-tagger/internal/ecr"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
-type commandOpts struct {
-	KubeConfig string
-	Namespace  string
-}
-
-var opts = commandOpts{}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
+var namespace string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -51,7 +46,27 @@ var rootCmd = &cobra.Command{
 			_ = cmd.Help()
 			os.Exit(1)
 		}
-		err := findAndTagImages(args[0], opts)
+		ecrClient, err := registry.NewClient()
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		ctx := context.Background()
+		tag := args[0]
+		err = findAndTagImages(ctx, clientset, ecrClient, tag, namespace)
 		if err != nil {
 			log.Print(err)
 			os.Exit(1)
@@ -70,62 +85,76 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize()
-	rootCmd.Flags().StringVar(&opts.KubeConfig, "kube-config", filepath.Join(homeDir(), ".kube", "config"), "absolute path to the kubeconfig file")
-	rootCmd.Flags().StringVar(&opts.Namespace, "namespace", "", "namespace from which images will be listed. Defaults to all namespaces")
+	rootCmd.Flags().StringVar(&namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
 }
 
-func findAndTagImages(tag string, opts commandOpts) error {
-	ecrClient, err := registry.NewClient()
-	if err != nil {
+func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tag string, namespace string) error {
+	// create the shared informer and resync every 1s
+	defaultResyncPeriod := 1 * time.Second
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(namespace))
+	informer := factory.Core().V1().Pods().Informer()
+	defer runtime.HandleCrash()
+
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			tagPodImages(ecrClient, tag, obj)
+		},
+		UpdateFunc: func(new interface{}, old interface{}) {
+			tagPodImages(ecrClient, tag, new)
+		},
+	})
+	go informer.Run(ctx.Done())
+	if !cache.WaitForNamedCacheSync("kube-ecr-tagger", ctx.Done(), informer.HasSynced) {
+		err := fmt.Errorf("Timed out waiting for caches to sync")
+		runtime.HandleError(err)
 		return err
 	}
+	<-ctx.Done()
 
-	k8sClient, err := k8s.NewClient(opts.KubeConfig)
-	if err != nil {
-		return err
+	return nil
+}
+
+func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return
 	}
-
-	log.Print("Finding all Pod images")
-
-	imageNames, err := k8sClient.ListImages(opts.Namespace)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Found '%v' images", len(imageNames))
-
-	log.Printf("Parsing image names")
-
+	log.Print("Getting images from Pod's containers")
 	var ecrImages []*ecr.Image
-
-	for _, imageName := range imageNames {
-		image, err := registry.ParseImageName(imageName)
+	// Get from init containers all images that are from ECR
+	for _, container := range pod.Spec.InitContainers {
+		image, err := registry.ParseImageName(container.Image)
 		if err != nil {
 			log.Print(err)
 			continue
 		}
 		ecrImages = append(ecrImages, image)
 	}
-
+	// Get from containers all images that are from ECR
+	for _, container := range pod.Spec.Containers {
+		image, err := registry.ParseImageName(container.Image)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		ecrImages = append(ecrImages, image)
+	}
 	if len(ecrImages) == 0 {
-		return fmt.Errorf("No ECR images were found")
+		log.Print("No ECR images are used in this Pod")
+		return
 	}
-
-	log.Printf("Found '%v' images from ECR", len(ecrImages))
-
-	log.Printf("Getting information about found images from ECR")
-
-	ecrImages, err = ecrClient.GetImagesInformation(ecrImages)
+	// Get the images' manifests from ECR
+	log.Print("Getting images' manifests from ECR")
+	ecrImages, err := ecrClient.GetImagesInformation(ecrImages)
 	if err != nil {
-		return err
+		log.Print(err)
+		return
 	}
-
-	log.Printf("Tagging found ECR images with tag '%s'", tag)
-
+	// Add the given tag to all images
+	log.Printf("Tagging images' on ECR with tag '%s'", tag)
 	err = ecrClient.TagImages(ecrImages, tag)
 	if err != nil {
-		return err
+		log.Print(err)
+		return
 	}
-
-	return nil
 }

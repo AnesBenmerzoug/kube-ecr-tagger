@@ -2,12 +2,14 @@
 
 BINARY_DIRECTORY=bin
 BINARY_NAME=$(BINARY_DIRECTORY)/kube-ecr-tagger
+GOPATH:=$(go env GOPATH)
+ifeq ($(GOPATH),)
+GOPATH:=$(HOME)/go
+endif
 
-all: test build
+all: fmt vet lint test build
 
-build: $(BINARY_NAME)
-
-$(BINARY_NAME):
+build:
 	go build -o $(BINARY_NAME)
 
 build-static:
@@ -20,17 +22,20 @@ test:
 	go test ./... -v -coverprofile=coverage.out
 	go tool cover -html=coverage.out
 
-format:
+fmt:
 	gofmt -l -w -s .
+
+vet:
+	go vet .
 
 lint:
 	golangci-lint run
 
 install-golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(HOME)/bin v1.22.0
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ${GOPATH}/bin v1.22.0
 
 lint-ci:
-	$(HOME)/bin/golangci-lint run
+	${GOPATH}/bin/golangci-lint run
 
 clean:
 	go clean
