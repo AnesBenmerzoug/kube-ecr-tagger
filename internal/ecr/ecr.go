@@ -95,6 +95,7 @@ func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error)
 func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 	for _, image := range imagesToTag {
 		if *image.ImageId.ImageTag == tag {
+			log.Printf("Image '%s' already has tag '%s'", image.ImageId.String(), *image.ImageId.ImageTag)
 			continue
 		}
 		putInput := &ecr.PutImageInput{
