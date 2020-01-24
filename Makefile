@@ -2,8 +2,10 @@
 
 BINARY_DIRECTORY=bin
 BINARY_NAME=$(BINARY_DIRECTORY)/kube-ecr-tagger
-GOPATH?=$(go env GOPATH)
-GOPATH?=${HOME}/go
+GOPATH:=$(go env GOPATH)
+ifeq ($(GOPATH),)
+GOPATH:=$(HOME)/go
+endif
 
 all: fmt vet lint test build
 
