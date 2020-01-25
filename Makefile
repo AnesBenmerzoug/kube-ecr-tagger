@@ -19,7 +19,7 @@ build-image:
 	docker build . -t kube-ecr-tagger:latest
 
 test:
-	go test ./... -v -coverprofile=coverage.out
+	go test ./... -v -coverprofile=coverage.out -coverpkg=$(shell go list ./... | tr "\n" ",")
 	go tool cover -html=coverage.out
 
 fmt:
