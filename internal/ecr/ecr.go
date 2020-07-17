@@ -64,6 +64,33 @@ func NewClient() (*Client, error) {
 	return client, nil
 }
 
+// GetImageTags queries ECR to get all Tags for the given image
+func (c *Client) GetImageTags(image *ecr.Image) ([]*string, error) {
+	var imageTags []*string
+	describeInput := &ecr.DescribeImagesInput{
+		ImageIds: []*ecr.ImageIdentifier{
+			{
+				ImageTag: image.ImageId.ImageTag,
+			},
+		},
+		RepositoryName: image.RepositoryName,
+		RegistryId:     image.RegistryId,
+	}
+	result, err := c.DescribeImages(describeInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			log.Print(aerr.Error())
+			return nil, err
+		} else {
+			return nil, err
+		}
+	}
+	for _, imageDetail := range result.ImageDetails {
+		imageTags = append(imageTags, imageDetail.ImageTags...)
+	}
+	return imageTags, nil
+}
+
 // GetImagesInformation queries ECR to get information for the given images
 func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error) {
 	var imageInformation []*ecr.Image
@@ -81,10 +108,10 @@ func (c *Client) GetImagesInformation(images []*ecr.Image) ([]*ecr.Image, error)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				log.Print(aerr.Error())
+				continue
 			} else {
 				return nil, err
 			}
-			continue
 		}
 		imageInformation = append(imageInformation, result.Images...)
 	}
@@ -108,6 +135,7 @@ func (c *Client) TagImages(imagesToTag []*ecr.Image, tag string) error {
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				log.Print(aerr.Error())
+				continue
 			} else {
 				return err
 			}

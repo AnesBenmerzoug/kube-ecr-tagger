@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,12 +37,13 @@ import (
 )
 
 var namespace string
+var tagPrefix string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "kube-ecr-tagger TAG",
 	Short: "Tags images from ECR used by Pods in cluster",
-	Long:  `A command that adds a given tag to all images from ECR that are used by Pods in the kubernetes cluster.`,
+	Long:  `A command that adds a tag that starts with a given prefix to all images from ECR that are used by Pods in the kubernetes cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			_ = cmd.Help()
@@ -65,8 +68,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		ctx := context.Background()
-		tag := args[0]
-		err = findAndTagImages(ctx, clientset, ecrClient, tag, namespace)
+		err = findAndTagImages(ctx, clientset, ecrClient, tagPrefix, namespace)
 		if err != nil {
 			log.Print(err)
 			os.Exit(1)
@@ -86,9 +88,10 @@ func Execute() {
 func init() {
 	cobra.OnInitialize()
 	rootCmd.Flags().StringVar(&namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
+	rootCmd.Flags().StringVar(&tagPrefix, "--tag-prefix", "deployed", "Tag prefix that will be used to form the image tag. Defaults to 'deployed'")
 }
 
-func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tag string, namespace string) error {
+func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tagPrefix string, namespace string) error {
 	// create the shared informer and resync every 1s
 	defaultResyncPeriod := 1 * time.Second
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(namespace))
@@ -97,10 +100,10 @@ func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrCl
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			tagPodImages(ecrClient, tag, obj)
+			tagPodImages(ecrClient, tagPrefix, obj)
 		},
 		UpdateFunc: func(new interface{}, old interface{}) {
-			tagPodImages(ecrClient, tag, new)
+			tagPodImages(ecrClient, tagPrefix, new)
 		},
 	})
 	go informer.Run(ctx.Done())
@@ -114,7 +117,7 @@ func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrCl
 	return nil
 }
 
-func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
+func tagPodImages(ecrClient *registry.Client, tagPrefix string, obj interface{}) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return
@@ -131,10 +134,15 @@ func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
 		ecrImages = append(ecrImages, image)
 	}
 	// Get from containers all images that are from ECR
+	// and whose current Tag does not start with tagPrefix
 	for _, container := range pod.Spec.Containers {
 		image, err := registry.ParseImageName(container.Image)
 		if err != nil {
 			log.Print(err)
+			continue
+		}
+		if strings.HasPrefix(*image.ImageId.ImageTag, tagPrefix) {
+			log.Printf("Image '%s' current Tag already starts with '%s'", container.Image, tagPrefix)
 			continue
 		}
 		ecrImages = append(ecrImages, image)
@@ -143,16 +151,35 @@ func tagPodImages(ecrClient *registry.Client, tag string, obj interface{}) {
 		log.Print("No ECR images are used in this Pod")
 		return
 	}
+	// Skip all images that have a least one Tag that starts with tagPrefix
+	var imagesToTag []*ecr.Image
+SkipOuterLoop:
+	for _, image := range ecrImages {
+		imageTags, err := ecrClient.GetImageTags(image)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		for _, tag := range imageTags {
+			if strings.HasPrefix(*tag, tagPrefix) {
+				log.Printf("Image '%s' already has a Tag that starts with '%s'", image, tagPrefix)
+				continue SkipOuterLoop
+			}
+		}
+		imagesToTag = append(imagesToTag, image)
+	}
 	// Get the images' manifests from ECR
+	// The manifests are needed in order to add a new Tag to existing images
 	log.Print("Getting images' manifests from ECR")
-	ecrImages, err := ecrClient.GetImagesInformation(ecrImages)
+	imagesToTag, err := ecrClient.GetImagesInformation(imagesToTag)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 	// Add the given tag to all images
+	tag := tagPrefix + strconv.FormatInt(time.Now().Unix(), 10)
 	log.Printf("Tagging images' on ECR with tag '%s'", tag)
-	err = ecrClient.TagImages(ecrImages, tag)
+	err = ecrClient.TagImages(imagesToTag, tag)
 	if err != nil {
 		log.Print(err)
 		return

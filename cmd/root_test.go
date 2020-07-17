@@ -111,12 +111,13 @@ func TestTaggingPodImages(t *testing.T) {
 		description string
 		namespace   string
 		name        string
-		tag         string
+		tagPrefix   string
 		image       string
 	}{
 		{"non ecr image", "default", "pod", "test-tag", "test-image:latest"},
 		{"ecr image different tag", "default", "pod", "test-tag", "123456789012.dkr.ecr.eu-central-1.amazonaws.com/test-image:latest"},
 		{"ecr image already tagged", "default", "pod", "test-tag", "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-image:test-tag"},
+		{"ecr image already tagged with prefix", "default", "pod", "test-tag", "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-image:test-tag-123"},
 	}
 
 	for _, test := range tests {
@@ -149,7 +150,7 @@ func TestTaggingPodImages(t *testing.T) {
 				},
 			}
 			go func(ctx context.Context) {
-				err := findAndTagImages(ctx, client, ecrClient, test.tag, test.namespace)
+				err := findAndTagImages(ctx, client, ecrClient, test.tagPrefix, test.namespace)
 				if err != nil {
 					t.Error(err)
 				}
