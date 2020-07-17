@@ -48,11 +48,7 @@ make test
 Install and run [golanci-lint](https://github.com/golangci/golangci-lint#install)
 
 ```bash
-# binary will be $(go env GOPATH)/bin/golangci-lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
-```
-
-```bash
+make install-golangi-lint
 make lint
 ```
 
