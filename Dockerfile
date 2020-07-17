@@ -14,7 +14,7 @@ RUN make build-static
 
 # Second stage
 # We use busybox instead of scratch so that we can use the shell for debugging
-FROM busybox:1.31.1
+FROM busybox:1.32.0
 
 COPY --from=build /tmp/src/bin/kube-ecr-tagger /usr/local/bin/
 

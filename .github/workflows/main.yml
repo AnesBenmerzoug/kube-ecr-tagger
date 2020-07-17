@@ -14,7 +14,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.14
     - name: Check out code
       uses: actions/checkout@v1
     - name: Run go formatter
@@ -26,7 +26,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.14
     - name: Check out code
       uses: actions/checkout@v1
     - name: Run go vet
@@ -39,7 +39,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.14
     - name: Check out code
       uses: actions/checkout@v1
     - name: Install golangci-lint
@@ -54,7 +54,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.14
     - name: Check out code
       uses: actions/checkout@v1
     - name: Run tests
@@ -72,7 +72,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v1
       with:
-        go-version: 1.13
+        go-version: 1.14
     - name: Check out code
       uses: actions/checkout@v1
     - name: Build binary
