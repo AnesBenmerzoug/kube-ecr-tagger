@@ -48,7 +48,7 @@ make test
 Install and run [golanci-lint](https://github.com/golangci/golangci-lint#install)
 
 ```bash
-make install-golangi-lint
+make install-golangci-lint
 make lint
 ```
 
