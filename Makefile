@@ -2,6 +2,7 @@
 
 BINARY_DIRECTORY=bin
 BINARY_NAME=$(BINARY_DIRECTORY)/kube-ecr-tagger
+GOLANGCI_VERSION=v1.28.0
 GOPATH:=$(go env GOPATH)
 ifeq ($(GOPATH),)
 GOPATH:=$(HOME)/go
@@ -32,10 +33,7 @@ lint:
 	golangci-lint run
 
 install-golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ${GOPATH}/bin v1.22.0
-
-lint-ci:
-	${GOPATH}/bin/golangci-lint run
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ${GOPATH}/bin ${GOLANGCI_VERSION}
 
 clean:
 	go clean
