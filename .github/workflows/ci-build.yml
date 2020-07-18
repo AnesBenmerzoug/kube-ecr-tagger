@@ -80,7 +80,7 @@ jobs:
     - name: Build binary
       run: make build
   docker-push:
-    name: build and push Docker image
+    name: build and push docker image
     runs-on: ubuntu-latest
     needs: [build-code]
     steps:
