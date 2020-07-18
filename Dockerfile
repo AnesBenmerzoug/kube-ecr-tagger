@@ -1,4 +1,4 @@
-FROM golang:1.13-buster as build
+FROM golang:1.14-buster as build
 
 RUN mkdir /tmp/src
 
