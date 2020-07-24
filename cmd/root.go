@@ -74,7 +74,7 @@ that are used by Pods in the kubernetes cluster.`,
 		}
 
 		ctx := context.Background()
-		err = findAndTagImages(ctx, clientset, ecrClient, tagPrefix, namespace)
+		err = findAndTagImages(ctx, clientset, ecrClient, tag, tagPrefix, namespace)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -93,22 +93,32 @@ func init() {
 	cobra.OnInitialize()
 	rootCmd.Flags().StringVar(&namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
 	rootCmd.Flags().StringVar(&tagPrefix, "tag-prefix", "deployed", "Tag prefix that will be used to form the image tag. Defaults to 'deployed'")
-	rootCmd.Flags().StringVar(&tagPrefix, "tag", "", "Image tag. If left empty, tag-prefix will be used to create a tag instead")
+	rootCmd.Flags().StringVar(&tag, "tag", "", "Image tag. If left empty, tag-prefix will be used to create a tag instead")
 }
 
-func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tagPrefix string, namespace string) error {
-	// create the shared informer and resync every 1s
-	defaultResyncPeriod := 1 * time.Second
+func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tag, tagPrefix, namespace string) error {
+	// create the shared informer and resync every 5s
+	defaultResyncPeriod := 5 * time.Second
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, defaultResyncPeriod, informers.WithNamespace(namespace))
 	informer := factory.Core().V1().Pods().Informer()
 	defer runtime.HandleCrash()
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			tagPodImages(ecrClient, tagPrefix, obj)
+			if tag == "" {
+				tag := tagPrefix + strconv.FormatInt(time.Now().Unix(), 10)
+				tagPodImages(ecrClient, tag, tagPrefix, obj)
+			} else {
+				tagPodImages(ecrClient, tag, tag, obj)
+			}
 		},
 		UpdateFunc: func(new interface{}, old interface{}) {
-			tagPodImages(ecrClient, tagPrefix, new)
+			if tag == "" {
+				tag := tagPrefix + strconv.FormatInt(time.Now().Unix(), 10)
+				tagPodImages(ecrClient, tag, tagPrefix, new)
+			} else {
+				tagPodImages(ecrClient, tag, tag, new)
+			}
 		},
 	})
 	go informer.Run(ctx.Done())
@@ -122,7 +132,7 @@ func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrCl
 	return nil
 }
 
-func tagPodImages(ecrClient *registry.Client, tagPrefix string, obj interface{}) {
+func tagPodImages(ecrClient *registry.Client, tag, tagPrefix string, obj interface{}) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return
@@ -182,7 +192,6 @@ SkipOuterLoop:
 		return
 	}
 	// Add the given tag to all images
-	tag := tagPrefix + strconv.FormatInt(time.Now().Unix(), 10)
 	log.Printf("Tagging images' on ECR with tag '%s'", tag)
 	err = ecrClient.TagImages(imagesToTag, tag)
 	if err != nil {
