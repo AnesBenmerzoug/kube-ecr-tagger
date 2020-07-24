@@ -36,14 +36,24 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var namespace string
-var tagPrefix string
+var (
+	namespace string
+	tag       string
+	tagPrefix string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "kube-ecr-tagger TAG",
 	Short: "Tags images from ECR used by Pods in cluster",
-	Long:  `A command that adds a tag that starts with a given prefix to all images from ECR that are used by Pods in the kubernetes cluster.`,
+	Long: `A command that adds a given tag or a tag that starts with a given prefix to all images from ECR
+that are used by Pods in the kubernetes cluster.`,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if tag == "" && tagPrefix == "" {
+			log.Print("tag and tagPrefix cannot be both empty strings")
+			os.Exit(1)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			_ = cmd.Help()
@@ -88,7 +98,8 @@ func Execute() {
 func init() {
 	cobra.OnInitialize()
 	rootCmd.Flags().StringVar(&namespace, "namespace", corev1.NamespaceAll, "namespace from which images will be listed. Defaults to all namespaces")
-	rootCmd.Flags().StringVar(&tagPrefix, "--tag-prefix", "deployed", "Tag prefix that will be used to form the image tag. Defaults to 'deployed'")
+	rootCmd.Flags().StringVar(&tagPrefix, "tag-prefix", "deployed", "Tag prefix that will be used to form the image tag. Defaults to 'deployed'")
+	rootCmd.Flags().StringVar(&tagPrefix, "tag", "", "Image tag. If left empty, tag-prefix will be used to create a tag instead")
 }
 
 func findAndTagImages(ctx context.Context, clientset kubernetes.Interface, ecrClient *registry.Client, tagPrefix string, namespace string) error {
