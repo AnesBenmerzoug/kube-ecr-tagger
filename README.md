@@ -23,11 +23,8 @@ This is done in order to avoid shooting yourself in the foot by accidentally del
                 "ecr:GetAuthorizationToken",
                 "ecr:BatchCheckLayerAvailability",
                 "ecr:GetDownloadUrlForLayer",
-                "ecr:DescribeRepositories",
-                "ecr:ListImages",
                 "ecr:DescribeImages",
                 "ecr:BatchGetImage",
-                "ecr:ListTagsForResource",
                 "ecr:PutImage",
             ],
             "Resource": "*"
