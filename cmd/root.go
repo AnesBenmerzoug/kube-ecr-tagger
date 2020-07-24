@@ -50,8 +50,7 @@ var rootCmd = &cobra.Command{
 that are used by Pods in the kubernetes cluster.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tag == "" && tagPrefix == "" {
-			log.Print("tag and tagPrefix cannot be both empty strings")
-			os.Exit(1)
+			log.Fatal("tag and tagPrefix cannot be both empty strings")
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -61,27 +60,23 @@ that are used by Pods in the kubernetes cluster.`,
 		}
 		ecrClient, err := registry.NewClient()
 		if err != nil {
-			log.Print(err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 
 		config, err := rest.InClusterConfig()
 		if err != nil {
-			log.Print(err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 
 		clientset, err := kubernetes.NewForConfig(config)
 		if err != nil {
-			log.Print(err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 
 		ctx := context.Background()
 		err = findAndTagImages(ctx, clientset, ecrClient, tagPrefix, namespace)
 		if err != nil {
-			log.Print(err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 	},
 }
@@ -90,8 +85,7 @@ that are used by Pods in the kubernetes cluster.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Print(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
