@@ -3,8 +3,12 @@
 
 ![](https://github.com/AnesBenmerzoug/kube-ecr-tagger/workflows/CI/badge.svg)
 [![codecov](https://codecov.io/gh/AnesBenmerzoug/kube-ecr-tagger/branch/master/graph/badge.svg)](https://codecov.io/gh/AnesBenmerzoug/kube-ecr-tagger)
+[![](https://img.shields.io/docker/v/anesbenmerzoug/kube-ecr-tagger?sort=semver)](https://hub.docker.com/r/anesbenmerzoug/kube-ecr-tagger)
+
 
 kube-ecr-tagger is a tool used to complement ECR lifecycles policies by adding a specified tag or tag prefix to all images from ECR that are currently used in your kubernetes cluster.
+
+Docker images can be found in [this repository](https://hub.docker.com/r/anesbenmerzoug/kube-ecr-tagger) on Dockerhub.
 
 ## Requirements
 
