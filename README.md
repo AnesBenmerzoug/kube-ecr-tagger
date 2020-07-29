@@ -37,7 +37,9 @@ Docker images can be found in [this Dockerhub repository](https://hub.docker.com
 
 ## Deployment
 
-Example manifests can in the [manifests](manifests/)
+Example manifests can in the [manifests](manifests/) folder.
+
+It contains a ServiceAccount, ClusterRole, ClusterRoleBinding and Deployment definitions.
 
 
 ## Development
