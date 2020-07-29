@@ -8,7 +8,7 @@
 
 kube-ecr-tagger is a tool used to complement ECR lifecycles policies by adding a specified tag or tag prefix to all images from ECR that are currently used in your kubernetes cluster.
 
-Docker images can be found in [this repository](https://hub.docker.com/r/anesbenmerzoug/kube-ecr-tagger) on Dockerhub.
+Docker images can be found in [this Dockerhub repository](https://hub.docker.com/r/anesbenmerzoug/kube-ecr-tagger).
 
 ## Requirements
 
@@ -35,14 +35,20 @@ Docker images can be found in [this repository](https://hub.docker.com/r/anesben
 }
 ```
 
+## Deployment
 
-## Tests
+Example manifests can in the [manifests](manifests/)
+
+
+## Development
+
+### Testing
 
 ```bash
 make test
 ```
 
-## Linting
+### Linting
 
 Install and run [golanci-lint](https://github.com/golangci/golangci-lint#install)
 
@@ -51,7 +57,7 @@ make install-golangci-lint
 make lint
 ```
 
-## Build
+### Building
 
 Dynamically-linked binary:
 

@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: kube-ecr-tagger
+spec:
+   template:
+      spec:
+        serviceAccountName: kube-ecr-tagger
+        containers:
+         - name: kube-ecr-tagger
+           image: anesbenmerzoug/kube-ecr-tagger:v0.1.2 
+           command:
+           - kube-ecr-tagger
+           args:
+           - --tag-prefix=production
